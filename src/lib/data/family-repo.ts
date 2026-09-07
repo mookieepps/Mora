@@ -249,7 +249,9 @@ export async function announceBirthRecord(
   if (!user) throw new Error("unauthorized");
   const family = await familyByOwner(user);
   if (!family) throw new Error("unauthorized");
-  if (family.status !== "IN_LABOR") return family.family_slug;
+  if (family.status !== "IN_LABOR") {
+    return { slug: family.family_slug, announced: false };
+  }
   const supabase = await createUserClient();
   const { error: statusError } = await supabase
     .from("families")
@@ -281,7 +283,7 @@ export async function announceBirthRecord(
     });
     if (error) throw error;
   }
-  return family.family_slug;
+  return { slug: family.family_slug, announced: true };
 }
 
 export async function getPublicFamilyBySlug(slug: string): Promise<PublicFamilyData | null> {

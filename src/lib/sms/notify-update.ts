@@ -9,15 +9,10 @@ function laborStartedBody(coupleName: string, familyUrl: string) {
   return `🚗 Baby update from Mora: ${coupleName} are heading in — labor has started! Follow their updates here: ${familyUrl}. Reply STOP to opt out.`;
 }
 
-async function sendLaborSmsToTargets(
-  targets: Recipient[],
-  coupleName: string,
-  familyUrl: string,
-) {
+async function sendSmsToTargets(targets: Recipient[], body: string) {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
-  const body = laborStartedBody(coupleName, familyUrl);
 
   for (const recipient of targets) {
     const to = normalizeUsPhone(recipient.phone);
@@ -113,10 +108,9 @@ export async function notifyRecipientsOfLaborStarted(
   }
 
   const coupleName = coupleDisplayName(family.motherName, family.partnerName);
-  const { sent, failed, skipped } = await sendLaborSmsToTargets(
+  const { sent, failed, skipped } = await sendSmsToTargets(
     selected.targets,
-    coupleName,
-    familyUrl,
+    laborStartedBody(coupleName, familyUrl),
   );
 
   if (failed === 0 && skipped === 0 && sent > 0) {
@@ -126,4 +120,49 @@ export async function notifyRecipientsOfLaborStarted(
     return "You're in labor, but some texts could not be sent.";
   }
   return "You're in labor, but the texts could not be sent.";
+}
+
+function birthAnnouncedBody(coupleName: string, babyName: string, familyUrl: string) {
+  return `🎉 Baby Is Here! ${coupleName} welcomed ${babyName}. See the birth announcement and family updates here: ${familyUrl}. Reply STOP to opt out.`;
+}
+
+export async function notifyRecipientsOfBirthAnnounced(
+  family: FamilyRecord,
+  recipients: Recipient[],
+  babyName: string,
+): Promise<string> {
+  const selected = selectSmsTargets(recipients);
+  if (selected.status === "none") {
+    return "Baby has been announced. Add a recipient to send texts.";
+  }
+  if (selected.status === "no_consent") {
+    return "Baby has been announced. Recipients need SMS consent before texts can be sent.";
+  }
+
+  const familyUrl = familyPageUrl(family.slug);
+  if (!familyUrl) {
+    return "Baby has been announced, but texts could not be sent. Set NEXT_PUBLIC_APP_URL to a public https address (not localhost).";
+  }
+
+  if (!isTwilioConfigured()) {
+    return "Baby has been announced, but texts could not be sent. Text notifications are not connected yet.";
+  }
+
+  if (selected.status === "test_mismatch") {
+    return "Baby has been announced. Test mode is on, and no recipient matched TWILIO_TEST_PHONE.";
+  }
+
+  const coupleName = coupleDisplayName(family.motherName, family.partnerName);
+  const { sent, failed, skipped } = await sendSmsToTargets(
+    selected.targets,
+    birthAnnouncedBody(coupleName, babyName, familyUrl),
+  );
+
+  if (failed === 0 && skipped === 0 && sent > 0) {
+    return "Baby has been announced. Family has been notified.";
+  }
+  if (sent > 0 && (failed > 0 || skipped > 0)) {
+    return "Baby has been announced, but some texts could not be sent.";
+  }
+  return "Baby has been announced, but the texts could not be sent.";
 }

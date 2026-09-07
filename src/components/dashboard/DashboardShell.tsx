@@ -472,6 +472,7 @@ function MilestonesSection({ status }: { status: DashboardData["family"]["status
           onAnnounce={async (formData) => {
             const result = await announceBirthAction(formData);
             if (!result.ok) return result;
+            setNotice(result.notice ?? "Baby has been announced.");
             router.refresh();
             return result;
           }}

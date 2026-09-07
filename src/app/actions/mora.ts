@@ -27,6 +27,7 @@ import {
 } from "@/lib/data/family-repo";
 import { createUserClient, getAuthUser } from "@/lib/supabase/server";
 import {
+  notifyRecipientsOfBirthAnnounced,
   notifyRecipientsOfLaborStarted,
   notifyRecipientsOfNormalUpdate,
 } from "@/lib/sms/notify-update";
@@ -237,7 +238,7 @@ export async function announceBirthAction(formData: FormData): Promise<ActionRes
       photoPath = await uploadOwnedFamilyPhoto("birth", photo);
     }
 
-    const slug = await announceBirthRecord({
+    const { slug, announced } = await announceBirthRecord({
       babyName,
       bornAt,
       weightPounds: poundsRaw === "" ? null : Number(poundsRaw),
@@ -246,7 +247,20 @@ export async function announceBirthAction(formData: FormData): Promise<ActionRes
       photoPath,
     });
     revalidateFamily(slug);
-    return { ok: true };
+    if (!announced) return { ok: true };
+
+    let notice = "Baby has been announced.";
+    try {
+      const family = await getOwnFamily();
+      if (family) {
+        const recipients = await listOwnedRecipients();
+        const name = family.birth?.babyName?.trim() || babyName;
+        notice = await notifyRecipientsOfBirthAnnounced(family, recipients, name);
+      }
+    } catch {
+      notice = "Baby has been announced, but the texts could not be sent.";
+    }
+    return { ok: true, notice };
   } catch (error) {
     return { ok: false, error: userFacingError(error) };
   }

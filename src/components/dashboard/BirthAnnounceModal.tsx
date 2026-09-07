@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
@@ -8,10 +8,13 @@ import { PhotoPicker } from "@/components/media/PhotoPicker";
 
 type BirthAnnounceModalProps = {
   onClose: () => void;
-  onAnnounce: (formData: FormData) => Promise<{ ok: true } | { ok: false; error: string }>;
+  onAnnounce: (
+    formData: FormData,
+  ) => Promise<{ ok: true; notice?: string } | { ok: false; error: string }>;
 };
 
 export function BirthAnnounceModal({ onClose, onAnnounce }: BirthAnnounceModalProps) {
+  const submitLock = useRef(false);
   const [babyName, setBabyName] = useState("");
   const [bornAt, setBornAt] = useState("");
   const [pounds, setPounds] = useState("");
@@ -22,7 +25,14 @@ export function BirthAnnounceModal({ onClose, onAnnounce }: BirthAnnounceModalPr
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  function closeIfIdle() {
+    if (busy || submitLock.current) return;
+    onClose();
+  }
+
   async function submit() {
+    if (submitLock.current || busy) return;
+
     const name = babyName.trim();
     const time = bornAt.trim();
     if (!name) {
@@ -63,20 +73,26 @@ export function BirthAnnounceModal({ onClose, onAnnounce }: BirthAnnounceModalPr
     if (inches != null) formData.set("lengthInches", String(inches));
     if (photo) formData.set("photo", photo);
 
+    submitLock.current = true;
     setBusy(true);
-    const result = await onAnnounce(formData);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    setError("");
+    try {
+      const result = await onAnnounce(formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onClose();
+    } finally {
+      submitLock.current = false;
+      setBusy(false);
     }
-    onClose();
   }
 
   return (
     <Modal
       title="Baby Is Here! 🎉"
-      onClose={onClose}
+      onClose={closeIfIdle}
       footer={
         <div className="mt-6 flex flex-col gap-2">
           <Button
@@ -90,7 +106,8 @@ export function BirthAnnounceModal({ onClose, onAnnounce }: BirthAnnounceModalPr
           <button
             type="button"
             className="inline-flex h-12 w-full items-center justify-center rounded-full text-sm font-medium text-charcoal/75"
-            onClick={onClose}
+            disabled={busy}
+            onClick={closeIfIdle}
           >
             Cancel
           </button>
