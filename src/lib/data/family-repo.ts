@@ -24,6 +24,8 @@ import {
   type UpdateRow,
 } from "@/lib/data/mappers";
 import type { BirthDetails, DashboardData, FamilyRecord, PublicFamilyData, ReactionKind } from "@/lib/data/types";
+import { parseBulkRecipientText } from "@/lib/recipients/parse-bulk";
+import { phoneKey } from "@/lib/sms/phone";
 import type { OnboardingDraft } from "@/lib/data/onboarding-draft";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
@@ -148,6 +150,18 @@ export async function createFamilyForUser(draft: OnboardingDraft): Promise<Famil
   throw lastError;
 }
 
+async function listFamilyPhones(client: SupabaseClient, familyId: string) {
+  const { data, error } = await client.from("recipients").select("phone_number").eq("family_id", familyId);
+  if (error) throw error;
+  return ((data ?? []) as { phone_number: string }[]).map((row) => row.phone_number);
+}
+
+function phoneAlreadyListed(existingPhones: string[], phone: string) {
+  const key = phoneKey(phone);
+  if (!key) return false;
+  return existingPhones.some((item) => phoneKey(item) === key);
+}
+
 export async function insertRecipient(name: string, phone: string, smsConsent: boolean) {
   const user = await getAuthUser();
   if (!user) throw new Error("unauthorized");
@@ -155,6 +169,8 @@ export async function insertRecipient(name: string, phone: string, smsConsent: b
   const family = await familyByOwner(user);
   if (!family) throw new Error("unauthorized");
   const supabase = await createUserClient();
+  const existingPhones = await listFamilyPhones(supabase, family.id);
+  if (phoneAlreadyListed(existingPhones, phone)) throw new Error("duplicate_phone");
   const { error } = await supabase.from("recipients").insert({
     family_id: family.id,
     name,
@@ -165,6 +181,33 @@ export async function insertRecipient(name: string, phone: string, smsConsent: b
   });
   if (error) throw error;
   return family.family_slug;
+}
+
+export async function insertRecipientsFromText(text: string, smsConsent: boolean) {
+  const user = await getAuthUser();
+  if (!user) throw new Error("unauthorized");
+  if (!smsConsent) throw new Error("sms_consent_required_bulk");
+  const family = await familyByOwner(user);
+  if (!family) throw new Error("unauthorized");
+  const supabase = await createUserClient();
+  const existingPhones = await listFamilyPhones(supabase, family.id);
+  const { valid } = parseBulkRecipientText(text, existingPhones);
+  if (valid.length === 0) {
+    return { slug: family.family_slug, added: 0 };
+  }
+  const consentedAt = new Date().toISOString();
+  const { error } = await supabase.from("recipients").insert(
+    valid.map((recipient) => ({
+      family_id: family.id,
+      name: recipient.name,
+      phone_number: recipient.phone,
+      sms_consent: true,
+      sms_consent_at: consentedAt,
+      consent_method: "parent_confirmation",
+    })),
+  );
+  if (error) throw error;
+  return { slug: family.family_slug, added: valid.length };
 }
 
 export async function deleteRecipient(recipientId: string) {

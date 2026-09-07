@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { FamilyEngagement } from "@/components/dashboard/FamilyEngagement";
 import { BirthAnnounceModal } from "@/components/dashboard/BirthAnnounceModal";
+import { BulkAddRecipientsModal } from "@/components/dashboard/BulkAddRecipientsModal";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
@@ -13,6 +14,7 @@ import { PhotoPicker } from "@/components/media/PhotoPicker";
 import {
   addRecipientAction,
   announceBirthAction,
+  bulkAddRecipientsAction,
   removeRecipientAction,
   sendUpdateAction,
   startLaborAction,
@@ -118,6 +120,7 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
   const [phone, setPhone] = useState("");
   const [smsConsent, setSmsConsent] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
 
@@ -148,6 +151,7 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
     setPhone("");
     setSmsConsent(false);
     setError("");
+    setNotice("");
     router.refresh();
   }
 
@@ -212,6 +216,7 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
         </Button>
       </div>
       {error ? <p className="mt-2 text-sm text-[#9a4f40]">{error}</p> : null}
+      {notice ? <p className="mt-2 text-sm text-charcoal">{notice}</p> : null}
 
       <ul className="mt-5 space-y-2">
         {recipients.length === 0 ? (
@@ -245,14 +250,23 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
       <button
         type="button"
         className="mt-4 text-sm text-charcoal/70 underline-offset-4 hover:underline"
-        onClick={() => setBulkOpen((value) => !value)}
+        onClick={() => setBulkOpen(true)}
       >
         Bulk Add Recipients
       </button>
       {bulkOpen ? (
-        <p className="mt-2 text-sm text-ink-muted">
-          Paste a list of people here soon. For now, add them one at a time.
-        </p>
+        <BulkAddRecipientsModal
+          existingPhones={recipients.map((recipient) => recipient.phone)}
+          onClose={() => setBulkOpen(false)}
+          onSave={async (text, smsConsent) => {
+            const result = await bulkAddRecipientsAction(text, smsConsent);
+            if (!result.ok) return result;
+            setError("");
+            setNotice(result.notice ?? "Recipients added.");
+            router.refresh();
+            return result;
+          }}
+        />
       ) : null}
     </section>
   );

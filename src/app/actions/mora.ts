@@ -18,6 +18,7 @@ import {
   getPublicFamilyBySlug,
   getVisitorReactions,
   insertRecipient,
+  insertRecipientsFromText,
   insertUpdate,
   insertWeightGuess,
   listOwnedRecipients,
@@ -139,6 +140,27 @@ export async function addRecipientAction(
     const slug = await insertRecipient(name, phone, smsConsent);
     revalidateFamily(slug);
     return { ok: true };
+  } catch (error) {
+    return { ok: false, error: userFacingError(error) };
+  }
+}
+
+export async function bulkAddRecipientsAction(
+  text: string,
+  smsConsent: boolean,
+): Promise<ActionResult> {
+  try {
+    const user = await getAuthUser();
+    if (!user) return parentAuthError();
+    const { slug, added } = await insertRecipientsFromText(text, smsConsent);
+    if (added === 0) {
+      return { ok: false, error: "None of those lines could be added. Check the list and try again." };
+    }
+    revalidateFamily(slug);
+    return {
+      ok: true,
+      notice: added === 1 ? "Added 1 recipient." : `Added ${added} recipients.`,
+    };
   } catch (error) {
     return { ok: false, error: userFacingError(error) };
   }
