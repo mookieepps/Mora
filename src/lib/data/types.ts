@@ -29,6 +29,9 @@ export type Recipient = {
   id: string;
   name: string;
   phone: string;
+  smsConsent: boolean;
+  smsConsentAt: string | null;
+  consentMethod: string | null;
 };
 
 export type UpdateType = "NORMAL" | "LABOR" | "BIRTH";

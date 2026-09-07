@@ -50,7 +50,7 @@ async function familyBySlugAdmin(slug: string): Promise<FamilyRow | null> {
 
 async function loadRelatedWith(client: SupabaseClient, familyId: string) {
   const [recipients, updates, reactions, guesses] = await Promise.all([
-    client.from("recipients").select("id, name, phone_number").eq("family_id", familyId).order("created_at"),
+    client.from("recipients").select("id, name, phone_number, sms_consent, sms_consent_at, consent_method").eq("family_id", familyId).order("created_at"),
     client
       .from("updates")
       .select("id, message, photo_url, update_type, created_at")
@@ -148,9 +148,10 @@ export async function createFamilyForUser(draft: OnboardingDraft): Promise<Famil
   throw lastError;
 }
 
-export async function insertRecipient(name: string, phone: string) {
+export async function insertRecipient(name: string, phone: string, smsConsent: boolean) {
   const user = await getAuthUser();
   if (!user) throw new Error("unauthorized");
+  if (!smsConsent) throw new Error("sms_consent_required");
   const family = await familyByOwner(user);
   if (!family) throw new Error("unauthorized");
   const supabase = await createUserClient();
@@ -158,6 +159,9 @@ export async function insertRecipient(name: string, phone: string) {
     family_id: family.id,
     name,
     phone_number: phone,
+    sms_consent: true,
+    sms_consent_at: new Date().toISOString(),
+    consent_method: "parent_confirmation",
   });
   if (error) throw error;
   return family.family_slug;
@@ -198,7 +202,7 @@ export async function listOwnedRecipients() {
   const supabase = await createUserClient();
   const { data, error } = await supabase
     .from("recipients")
-    .select("id, name, phone_number")
+    .select("id, name, phone_number, sms_consent, sms_consent_at, consent_method")
     .eq("family_id", family.id)
     .order("created_at");
   if (error) throw error;

@@ -116,6 +116,7 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -131,9 +132,13 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
       setError("Enter a phone number.");
       return;
     }
+    if (!smsConsent) {
+      setError("Confirm that this person agreed to receive texts before adding them.");
+      return;
+    }
 
     setBusy(true);
-    const result = await addRecipientAction(nextName, nextPhone);
+    const result = await addRecipientAction(nextName, nextPhone, true);
     setBusy(false);
     if (!result.ok) {
       setError(result.error);
@@ -141,6 +146,7 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
     }
     setName("");
     setPhone("");
+    setSmsConsent(false);
     setError("");
     router.refresh();
   }
@@ -171,19 +177,35 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
           autoComplete="name"
           onChange={(event) => setName(event.target.value)}
         />
-        <Field
-          id="recipient-phone"
-          label="Phone"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-        />
+        <div>
+          <Field
+            id="recipient-phone"
+            label="Phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+          />
+          <label className="mt-3 flex cursor-pointer items-start gap-2.5">
+            <input
+              id="recipient-sms-consent"
+              type="checkbox"
+              required
+              checked={smsConsent}
+              onChange={(event) => setSmsConsent(event.target.checked)}
+              className="mt-1 size-4 shrink-0 rounded border-charcoal/25 accent-charcoal"
+            />
+            <span className="text-sm leading-relaxed text-ink-muted">
+              I confirm this person has agreed to receive pregnancy, labor, and birth text updates
+              through Mora. Message and data rates may apply. They can reply STOP to opt out.
+            </span>
+          </label>
+        </div>
         <Button
           type="button"
           className="h-12 w-full whitespace-nowrap sm:mb-0 sm:w-auto"
-          disabled={busy}
+          disabled={busy || !smsConsent}
           onClick={addRecipient}
         >
           Add Recipient

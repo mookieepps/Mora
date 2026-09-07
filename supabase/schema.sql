@@ -46,6 +46,9 @@ create table if not exists recipients (
   family_id uuid not null references families (id) on delete cascade,
   name text not null,
   phone_number text not null,
+  sms_consent boolean not null default false,
+  sms_consent_at timestamptz,
+  consent_method text,
   created_at timestamptz not null default now()
 );
 

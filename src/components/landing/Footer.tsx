@@ -15,6 +15,9 @@ export function Footer() {
           <a href="#privacy" className="hover:text-charcoal">
             Privacy
           </a>
+          <a href="/sms-consent" className="hover:text-charcoal">
+            SMS
+          </a>
         </div>
       </div>
       <p className="mx-auto mt-8 max-w-6xl text-xs text-ink-muted">

@@ -12,5 +12,8 @@ export function userFacingError(error: unknown): string {
   if (error instanceof Error && error.name === "PhotoError") {
     return error.message;
   }
+  if (error instanceof Error && error.message === "sms_consent_required") {
+    return "Confirm that this person agreed to receive texts before adding them.";
+  }
   return "Something went wrong. Please try again.";
 }

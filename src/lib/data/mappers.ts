@@ -33,6 +33,9 @@ export type RecipientRow = {
   id: string;
   name: string;
   phone_number: string;
+  sms_consent?: boolean | null;
+  sms_consent_at?: string | null;
+  consent_method?: string | null;
 };
 
 export type UpdateRow = {
@@ -90,7 +93,14 @@ export function mapFamily(row: FamilyRow): FamilyRecord {
 }
 
 export function mapRecipient(row: RecipientRow): Recipient {
-  return { id: row.id, name: row.name, phone: row.phone_number };
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone_number,
+    smsConsent: Boolean(row.sms_consent),
+    smsConsentAt: row.sms_consent_at ?? null,
+    consentMethod: row.consent_method ?? null,
+  };
 }
 
 export function mapUpdate(row: UpdateRow): FamilyUpdate {

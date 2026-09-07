@@ -124,11 +124,15 @@ export async function signOutAction() {
   redirect("/");
 }
 
-export async function addRecipientAction(name: string, phone: string): Promise<ActionResult> {
+export async function addRecipientAction(
+  name: string,
+  phone: string,
+  smsConsent: boolean,
+): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
     if (!user) return parentAuthError();
-    const slug = await insertRecipient(name, phone);
+    const slug = await insertRecipient(name, phone, smsConsent);
     revalidateFamily(slug);
     return { ok: true };
   } catch (error) {

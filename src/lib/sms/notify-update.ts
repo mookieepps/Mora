@@ -14,8 +14,12 @@ export async function notifyRecipientsOfNormalUpdate(
   family: FamilyRecord,
   recipients: Recipient[],
 ): Promise<string> {
+  const consented = recipients.filter((recipient) => recipient.smsConsent);
   if (recipients.length === 0) {
     return "Update saved. Add a recipient to send texts.";
+  }
+  if (consented.length === 0) {
+    return "Update saved. Recipients need SMS consent before texts can be sent.";
   }
 
   const familyUrl = familyPageUrl(family.slug);
@@ -30,8 +34,8 @@ export async function notifyRecipientsOfNormalUpdate(
   const coupleName = coupleDisplayName(family.motherName, family.partnerName);
   const testPhone = testPhoneFilter();
   const targets = testPhone
-    ? recipients.filter((recipient) => normalizeUsPhone(recipient.phone) === testPhone)
-    : recipients;
+    ? consented.filter((recipient) => normalizeUsPhone(recipient.phone) === testPhone)
+    : consented;
 
   if (testPhone && targets.length === 0) {
     return "Update saved. Test mode is on, and no recipient matched TWILIO_TEST_PHONE.";
