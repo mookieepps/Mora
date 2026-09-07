@@ -26,7 +26,10 @@ import {
   uploadOwnedFamilyPhoto,
 } from "@/lib/data/family-repo";
 import { createUserClient, getAuthUser } from "@/lib/supabase/server";
-import { notifyRecipientsOfNormalUpdate } from "@/lib/sms/notify-update";
+import {
+  notifyRecipientsOfLaborStarted,
+  notifyRecipientsOfNormalUpdate,
+} from "@/lib/sms/notify-update";
 import type { ReactionKind } from "@/lib/mock/family";
 
 type ActionResult = { ok: true; next?: string; notice?: string } | { ok: false; error: string };
@@ -195,9 +198,21 @@ export async function startLaborAction(): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
     if (!user) return parentAuthError();
-    const slug = await startLabor();
+    const { slug, started } = await startLabor();
     revalidateFamily(slug);
-    return { ok: true };
+    if (!started) return { ok: true };
+
+    let notice = "You're in labor.";
+    try {
+      const family = await getOwnFamily();
+      if (family) {
+        const recipients = await listOwnedRecipients();
+        notice = await notifyRecipientsOfLaborStarted(family, recipients);
+      }
+    } catch {
+      notice = "You're in labor, but the texts could not be sent.";
+    }
+    return { ok: true, notice };
   } catch (error) {
     return { ok: false, error: userFacingError(error) };
   }

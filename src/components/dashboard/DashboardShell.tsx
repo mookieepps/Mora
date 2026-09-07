@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { FamilyEngagement } from "@/components/dashboard/FamilyEngagement";
@@ -359,20 +359,30 @@ function UpdateSection({ updates }: { updates: FamilyUpdate[] }) {
 
 function MilestonesSection({ status }: { status: DashboardData["family"]["status"] }) {
   const router = useRouter();
+  const laborLock = useRef(false);
   const [modal, setModal] = useState<"labor" | "birth" | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function confirmLabor() {
+    if (laborLock.current || busy) return;
+    laborLock.current = true;
     setBusy(true);
-    const result = await startLaborAction();
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    setError("");
+    try {
+      const result = await startLaborAction();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setModal(null);
+      setNotice(result.notice ?? "You're in labor.");
+      router.refresh();
+    } finally {
+      laborLock.current = false;
+      setBusy(false);
     }
-    setModal(null);
-    router.refresh();
   }
 
   return (
@@ -419,11 +429,15 @@ function MilestonesSection({ status }: { status: DashboardData["family"]["status
         </>
       )}
       {error ? <p className="mt-3 text-sm text-[#9a4f40]">{error}</p> : null}
+      {notice ? <p className="mt-3 text-sm text-charcoal">{notice}</p> : null}
 
       {modal === "labor" ? (
         <Modal
           title="Are you sure? 🚗"
-          onClose={() => setModal(null)}
+          onClose={() => {
+            if (busy) return;
+            setModal(null);
+          }}
           footer={
             <div className="mt-6 flex flex-col gap-2">
               <Button
@@ -432,12 +446,16 @@ function MilestonesSection({ status }: { status: DashboardData["family"]["status
                 disabled={busy}
                 onClick={confirmLabor}
               >
-                Yes, We’re Going!
+                {busy ? "Updating..." : "Yes, We’re Going!"}
               </Button>
               <button
                 type="button"
                 className="inline-flex h-12 w-full items-center justify-center rounded-full text-sm font-medium text-charcoal/75"
-                onClick={() => setModal(null)}
+                disabled={busy}
+                onClick={() => {
+                  if (busy) return;
+                  setModal(null);
+                }}
               >
                 Cancel
               </button>

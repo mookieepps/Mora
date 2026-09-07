@@ -214,7 +214,9 @@ export async function startLabor() {
   if (!user) throw new Error("unauthorized");
   const family = await familyByOwner(user);
   if (!family) throw new Error("unauthorized");
-  if (family.status !== "PREGNANCY") return family.family_slug;
+  if (family.status !== "PREGNANCY") {
+    return { slug: family.family_slug, started: false };
+  }
   const supabase = await createUserClient();
   const { error: statusError } = await supabase.from("families").update({ status: "IN_LABOR" }).eq("id", family.id);
   if (statusError) throw statusError;
@@ -235,7 +237,7 @@ export async function startLabor() {
     });
     if (error) throw error;
   }
-  return family.family_slug;
+  return { slug: family.family_slug, started: true };
 }
 
 export async function announceBirthRecord(
