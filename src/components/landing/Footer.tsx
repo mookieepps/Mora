@@ -8,12 +8,15 @@ export function Footer() {
             Private pregnancy updates for the people you choose.
           </p>
         </div>
-        <div className="flex gap-6 text-sm text-charcoal/70">
+        <div className="flex flex-wrap gap-6 text-sm text-charcoal/70">
           <a href="#how-it-works" className="hover:text-charcoal">
             How it works
           </a>
-          <a href="#privacy" className="hover:text-charcoal">
-            Privacy
+          <a href="/privacy" className="hover:text-charcoal">
+            Privacy Policy
+          </a>
+          <a href="/terms" className="hover:text-charcoal">
+            Terms of Service
           </a>
           <a href="/sms-consent" className="hover:text-charcoal">
             SMS

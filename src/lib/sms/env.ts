@@ -25,6 +25,12 @@ export function familyPageUrl(slug: string): string | null {
   return `${base}/family/${slug}`;
 }
 
+export function smsOptInUrl(token: string): string | null {
+  const base = getPublicAppUrl();
+  if (!base || !token) return null;
+  return `${base}/sms-opt-in/${token}`;
+}
+
 export function isTwilioConfigured(): boolean {
   return Boolean(
     process.env.TWILIO_ACCOUNT_SID &&

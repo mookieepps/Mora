@@ -129,37 +129,33 @@ export async function signOutAction() {
   redirect("/");
 }
 
-export async function addRecipientAction(
-  name: string,
-  phone: string,
-  smsConsent: boolean,
-): Promise<ActionResult> {
+export async function addRecipientAction(name: string, phone: string): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
     if (!user) return parentAuthError();
-    const slug = await insertRecipient(name, phone, smsConsent);
+    const slug = await insertRecipient(name, phone);
     revalidateFamily(slug);
-    return { ok: true };
+    return { ok: true, notice: "Share their opt-in link. They’ll only get texts after they agree." };
   } catch (error) {
     return { ok: false, error: userFacingError(error) };
   }
 }
 
-export async function bulkAddRecipientsAction(
-  text: string,
-  smsConsent: boolean,
-): Promise<ActionResult> {
+export async function bulkAddRecipientsAction(text: string): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
     if (!user) return parentAuthError();
-    const { slug, added } = await insertRecipientsFromText(text, smsConsent);
+    const { slug, added } = await insertRecipientsFromText(text);
     if (added === 0) {
       return { ok: false, error: "None of those lines could be added. Check the list and try again." };
     }
     revalidateFamily(slug);
     return {
       ok: true,
-      notice: added === 1 ? "Added 1 recipient." : `Added ${added} recipients.`,
+      notice:
+        added === 1
+          ? "Added 1 recipient. Share their opt-in link so they can agree to texts."
+          : `Added ${added} recipients. Share each opt-in link so they can agree to texts.`,
     };
   } catch (error) {
     return { ok: false, error: userFacingError(error) };

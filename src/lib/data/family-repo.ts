@@ -25,12 +25,16 @@ import {
 } from "@/lib/data/mappers";
 import type { BirthDetails, DashboardData, FamilyRecord, PublicFamilyData, ReactionKind } from "@/lib/data/types";
 import { parseBulkRecipientText } from "@/lib/recipients/parse-bulk";
-import { phoneKey } from "@/lib/sms/phone";
+import { createInviteToken } from "@/lib/sms/invite-token";
+import { normalizeUsPhone, phoneKey } from "@/lib/sms/phone";
 import type { OnboardingDraft } from "@/lib/data/onboarding-draft";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 const FAMILY_COLUMNS =
   "id, expecting_parent_name, partner_name, due_date, status, family_slug, baby_name, birth_time, birth_weight_pounds, birth_weight_ounces, birth_length, baby_photo_url, created_at, updated_at";
+
+const RECIPIENT_COLUMNS =
+  "id, name, phone_number, sms_consent, sms_consent_at, consent_method, invite_token";
 
 async function familyByOwner(user: User): Promise<FamilyRow | null> {
   const supabase = await createUserClient();
@@ -52,7 +56,7 @@ async function familyBySlugAdmin(slug: string): Promise<FamilyRow | null> {
 
 async function loadRelatedWith(client: SupabaseClient, familyId: string) {
   const [recipients, updates, reactions, guesses] = await Promise.all([
-    client.from("recipients").select("id, name, phone_number, sms_consent, sms_consent_at, consent_method").eq("family_id", familyId).order("created_at"),
+    client.from("recipients").select(RECIPIENT_COLUMNS).eq("family_id", familyId).order("created_at"),
     client
       .from("updates")
       .select("id, message, photo_url, update_type, created_at")
@@ -162,31 +166,31 @@ function phoneAlreadyListed(existingPhones: string[], phone: string) {
   return existingPhones.some((item) => phoneKey(item) === key);
 }
 
-export async function insertRecipient(name: string, phone: string, smsConsent: boolean) {
+export async function insertRecipient(name: string, phone: string) {
   const user = await getAuthUser();
   if (!user) throw new Error("unauthorized");
-  if (!smsConsent) throw new Error("sms_consent_required");
   const family = await familyByOwner(user);
   if (!family) throw new Error("unauthorized");
   const supabase = await createUserClient();
   const existingPhones = await listFamilyPhones(supabase, family.id);
   if (phoneAlreadyListed(existingPhones, phone)) throw new Error("duplicate_phone");
+  const storedPhone = normalizeUsPhone(phone) ?? phone.trim();
   const { error } = await supabase.from("recipients").insert({
     family_id: family.id,
     name,
-    phone_number: phone,
-    sms_consent: true,
-    sms_consent_at: new Date().toISOString(),
-    consent_method: "parent_confirmation",
+    phone_number: storedPhone,
+    sms_consent: false,
+    sms_consent_at: null,
+    consent_method: null,
+    invite_token: createInviteToken(),
   });
   if (error) throw error;
   return family.family_slug;
 }
 
-export async function insertRecipientsFromText(text: string, smsConsent: boolean) {
+export async function insertRecipientsFromText(text: string) {
   const user = await getAuthUser();
   if (!user) throw new Error("unauthorized");
-  if (!smsConsent) throw new Error("sms_consent_required_bulk");
   const family = await familyByOwner(user);
   if (!family) throw new Error("unauthorized");
   const supabase = await createUserClient();
@@ -195,15 +199,15 @@ export async function insertRecipientsFromText(text: string, smsConsent: boolean
   if (valid.length === 0) {
     return { slug: family.family_slug, added: 0 };
   }
-  const consentedAt = new Date().toISOString();
   const { error } = await supabase.from("recipients").insert(
     valid.map((recipient) => ({
       family_id: family.id,
       name: recipient.name,
       phone_number: recipient.phone,
-      sms_consent: true,
-      sms_consent_at: consentedAt,
-      consent_method: "parent_confirmation",
+      sms_consent: false,
+      sms_consent_at: null,
+      consent_method: null,
+      invite_token: createInviteToken(),
     })),
   );
   if (error) throw error;
@@ -245,7 +249,7 @@ export async function listOwnedRecipients() {
   const supabase = await createUserClient();
   const { data, error } = await supabase
     .from("recipients")
-    .select("id, name, phone_number, sms_consent, sms_consent_at, consent_method")
+    .select(RECIPIENT_COLUMNS)
     .eq("family_id", family.id)
     .order("created_at");
   if (error) throw error;

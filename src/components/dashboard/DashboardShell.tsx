@@ -21,6 +21,7 @@ import {
 } from "@/app/actions/mora";
 import { formatBirthMeasures } from "@/lib/data/birth";
 import type { DashboardData, FamilyUpdate, Recipient } from "@/lib/data/types";
+import { smsOptInUrl } from "@/lib/sms/env";
 import {
   coupleDisplayName,
   formatDueDateNumeric,
@@ -114,15 +115,19 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   );
 }
 
+function recipientOptInUrl(recipient: Recipient) {
+  return smsOptInUrl(recipient.inviteToken) ?? `/sms-opt-in/${recipient.inviteToken}`;
+}
+
 function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [smsConsent, setSmsConsent] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState("");
 
   async function addRecipient() {
     const nextName = name.trim();
@@ -135,13 +140,9 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
       setError("Enter a phone number.");
       return;
     }
-    if (!smsConsent) {
-      setError("Confirm that this person agreed to receive texts before adding them.");
-      return;
-    }
 
     setBusy(true);
-    const result = await addRecipientAction(nextName, nextPhone, true);
+    const result = await addRecipientAction(nextName, nextPhone);
     setBusy(false);
     if (!result.ok) {
       setError(result.error);
@@ -149,10 +150,23 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
     }
     setName("");
     setPhone("");
-    setSmsConsent(false);
     setError("");
-    setNotice("");
+    setNotice(result.notice ?? "Share their opt-in link. They’ll only get texts after they agree.");
     router.refresh();
+  }
+
+  async function copyOptInLink(recipient: Recipient) {
+    if (!recipient.inviteToken) return;
+    const url = recipientOptInUrl(recipient);
+    const absolute =
+      url.startsWith("http") ? url : `${window.location.origin}${url}`;
+    try {
+      await navigator.clipboard.writeText(absolute);
+      setCopiedId(recipient.id);
+      window.setTimeout(() => setCopiedId(""), 2500);
+    } catch {
+      setError("Could not copy the link. Copy it from the address bar after opening it.");
+    }
   }
 
   async function removeRecipient(id: string) {
@@ -170,7 +184,7 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
     <section>
       <h2 className="text-lg font-medium tracking-tight">Recipients</h2>
       <p className="mt-1 text-sm text-ink-muted">
-        People who will get a private link when we add SMS.
+        Add people, then share each opt-in link. They only get texts after they agree themselves.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -181,35 +195,19 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
           autoComplete="name"
           onChange={(event) => setName(event.target.value)}
         />
-        <div>
-          <Field
-            id="recipient-phone"
-            label="Phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-          />
-          <label className="mt-3 flex cursor-pointer items-start gap-2.5">
-            <input
-              id="recipient-sms-consent"
-              type="checkbox"
-              required
-              checked={smsConsent}
-              onChange={(event) => setSmsConsent(event.target.checked)}
-              className="mt-1 size-4 shrink-0 rounded border-charcoal/25 accent-charcoal"
-            />
-            <span className="text-sm leading-relaxed text-ink-muted">
-              I confirm this person has agreed to receive pregnancy, labor, and birth text updates
-              through Mora. Message and data rates may apply. They can reply STOP to opt out.
-            </span>
-          </label>
-        </div>
+        <Field
+          id="recipient-phone"
+          label="Phone"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+        />
         <Button
           type="button"
           className="h-12 w-full whitespace-nowrap sm:mb-0 sm:w-auto"
-          disabled={busy || !smsConsent}
+          disabled={busy}
           onClick={addRecipient}
         >
           Add Recipient
@@ -232,6 +230,18 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
               <div className="min-w-0">
                 <p className="truncate text-[15px] font-medium">{recipient.name}</p>
                 <p className="truncate text-sm text-ink-muted">{recipient.phone}</p>
+                <p className="mt-1 text-sm text-ink-muted">
+                  {recipient.smsConsent ? "SMS enabled" : "Pending SMS consent"}
+                </p>
+                {recipient.inviteToken ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-sm text-charcoal/70 underline-offset-4 hover:underline"
+                    onClick={() => copyOptInLink(recipient)}
+                  >
+                    {copiedId === recipient.id ? "Opt-in link copied" : "Copy opt-in link"}
+                  </button>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -258,8 +268,8 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
         <BulkAddRecipientsModal
           existingPhones={recipients.map((recipient) => recipient.phone)}
           onClose={() => setBulkOpen(false)}
-          onSave={async (text, smsConsent) => {
-            const result = await bulkAddRecipientsAction(text, smsConsent);
+          onSave={async (text) => {
+            const result = await bulkAddRecipientsAction(text);
             if (!result.ok) return result;
             setError("");
             setNotice(result.notice ?? "Recipients added.");

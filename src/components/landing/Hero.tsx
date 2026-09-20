@@ -23,8 +23,8 @@ export function Hero() {
             className="animate-fade-up mt-4 max-w-[20.75rem] text-[15px] leading-[1.6] text-ink-muted sm:mt-6 sm:max-w-md sm:text-lg sm:leading-relaxed"
             style={{ animationDelay: "220ms" }}
           >
-            One update keeps everyone you love in the loop — from pregnancy, to
-            labor, to the moment your baby arrives.
+            Pregnancy comes with enough to think about. 
+            Share updates, milestones, and important moments with the people you choose—all in one place.
           </p>
           <div
             className="animate-fade-up mt-6 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:items-center sm:gap-3"

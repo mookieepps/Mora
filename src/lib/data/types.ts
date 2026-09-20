@@ -32,6 +32,7 @@ export type Recipient = {
   smsConsent: boolean;
   smsConsentAt: string | null;
   consentMethod: string | null;
+  inviteToken: string;
 };
 
 export type UpdateType = "NORMAL" | "LABOR" | "BIRTH";

@@ -36,6 +36,7 @@ export type RecipientRow = {
   sms_consent?: boolean | null;
   sms_consent_at?: string | null;
   consent_method?: string | null;
+  invite_token?: string | null;
 };
 
 export type UpdateRow = {
@@ -100,6 +101,7 @@ export function mapRecipient(row: RecipientRow): Recipient {
     smsConsent: Boolean(row.sms_consent),
     smsConsentAt: row.sms_consent_at ?? null,
     consentMethod: row.consent_method ?? null,
+    inviteToken: row.invite_token ?? "",
   };
 }
 

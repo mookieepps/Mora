@@ -8,10 +8,7 @@ import { parseBulkRecipientText } from "@/lib/recipients/parse-bulk";
 type BulkAddRecipientsModalProps = {
   existingPhones: string[];
   onClose: () => void;
-  onSave: (
-    text: string,
-    smsConsent: boolean,
-  ) => Promise<{ ok: true; notice?: string } | { ok: false; error: string }>;
+  onSave: (text: string) => Promise<{ ok: true; notice?: string } | { ok: false; error: string }>;
 };
 
 export function BulkAddRecipientsModal({
@@ -21,7 +18,6 @@ export function BulkAddRecipientsModal({
 }: BulkAddRecipientsModalProps) {
   const saveLock = useRef(false);
   const [text, setText] = useState("");
-  const [smsConsent, setSmsConsent] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -37,10 +33,6 @@ export function BulkAddRecipientsModal({
 
   async function save() {
     if (saveLock.current || busy) return;
-    if (!smsConsent) {
-      setError("Confirm these people agreed to receive texts before adding them.");
-      return;
-    }
     if (parsed.valid.length === 0) {
       setError("Add at least one valid Name, Phone Number line.");
       return;
@@ -50,7 +42,7 @@ export function BulkAddRecipientsModal({
     setBusy(true);
     setError("");
     try {
-      const result = await onSave(text, true);
+      const result = await onSave(text);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -72,7 +64,7 @@ export function BulkAddRecipientsModal({
           <Button
             type="button"
             className="h-12 w-full whitespace-nowrap"
-            disabled={busy || !smsConsent || parsed.valid.length === 0}
+            disabled={busy || parsed.valid.length === 0}
             onClick={save}
           >
             {busy
@@ -93,6 +85,9 @@ export function BulkAddRecipientsModal({
       }
     >
       <p>Paste one person per line as Name, Phone Number.</p>
+      <p className="mt-2 text-sm">
+        They will not get texts until they open their opt-in link and agree themselves.
+      </p>
       <p className="mt-2 text-sm">
         Example:
         <br />
@@ -147,21 +142,6 @@ export function BulkAddRecipientsModal({
           </ul>
         </div>
       ) : null}
-
-      <label className="mt-5 flex cursor-pointer items-start gap-2.5 text-left">
-        <input
-          id="bulk-sms-consent"
-          type="checkbox"
-          required
-          checked={smsConsent}
-          onChange={(event) => setSmsConsent(event.target.checked)}
-          className="mt-1 size-4 shrink-0 rounded border-charcoal/25 accent-charcoal"
-        />
-        <span className="text-sm leading-relaxed text-ink-muted">
-          I confirm these recipients have agreed to receive pregnancy, labor, and birth text updates
-          through Mora. Message and data rates may apply. They can reply STOP to opt out.
-        </span>
-      </label>
       {error ? <p className="mt-3 text-left text-sm text-[#9a4f40]">{error}</p> : null}
     </Modal>
   );

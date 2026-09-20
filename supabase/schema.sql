@@ -49,6 +49,10 @@ create table if not exists recipients (
   sms_consent boolean not null default false,
   sms_consent_at timestamptz,
   consent_method text,
+  invite_token text not null unique,
+  consent_phone text,
+  consent_ip text,
+  consent_user_agent text,
   created_at timestamptz not null default now()
 );
 
