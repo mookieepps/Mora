@@ -21,7 +21,12 @@ import {
 } from "@/app/actions/mora";
 import { formatBirthMeasures } from "@/lib/data/birth";
 import type { DashboardData, FamilyUpdate, Recipient } from "@/lib/data/types";
-import { smsOptInUrl } from "@/lib/sms/env";
+import {
+  nativeSmsHref,
+  parentInviteMessage,
+  prefersNativeSms,
+  recipientInviteUrl,
+} from "@/lib/sms/parent-invite";
 import {
   coupleDisplayName,
   formatDueDateNumeric,
@@ -91,11 +96,11 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           {inLabor || arrived ? (
             <>
               <UpdateSection updates={data.updates} />
-              <RecipientsSection recipients={data.recipients} />
+              <RecipientsSection familyNames={names} recipients={data.recipients} />
             </>
           ) : (
             <>
-              <RecipientsSection recipients={data.recipients} />
+              <RecipientsSection familyNames={names} recipients={data.recipients} />
               <UpdateSection updates={data.updates} />
             </>
           )}
@@ -115,11 +120,13 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   );
 }
 
-function recipientOptInUrl(recipient: Recipient) {
-  return smsOptInUrl(recipient.inviteToken) ?? `/sms-opt-in/${recipient.inviteToken}`;
-}
-
-function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
+function RecipientsSection({
+  familyNames,
+  recipients,
+}: {
+  familyNames: string;
+  recipients: Recipient[];
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -127,7 +134,46 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [copiedId, setCopiedId] = useState("");
+  const [copied, setCopied] = useState<{ id: string; kind: "link" | "invite" } | null>(null);
+
+  function inviteUrl(recipient: Recipient) {
+    return recipient.inviteToken ? recipientInviteUrl(recipient.inviteToken) : null;
+  }
+
+  function invitationText(recipient: Recipient) {
+    const url = inviteUrl(recipient);
+    if (!url) return null;
+    return parentInviteMessage(familyNames, url);
+  }
+
+  async function copyText(recipient: Recipient, kind: "link" | "invite") {
+    const url = inviteUrl(recipient);
+    if (!url) {
+      setError("Set NEXT_PUBLIC_APP_URL to a public https address so the opt-in link can be shared.");
+      return;
+    }
+    const text = kind === "invite" ? parentInviteMessage(familyNames, url) : url;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied({ id: recipient.id, kind });
+      window.setTimeout(() => setCopied(null), 2500);
+    } catch {
+      setError("Could not copy. Long-press the text or copy it from another device.");
+    }
+  }
+
+  function inviteRecipient(recipient: Recipient) {
+    const text = invitationText(recipient);
+    if (!text) {
+      setError("Set NEXT_PUBLIC_APP_URL to a public https address so the opt-in link can be shared.");
+      return;
+    }
+    if (prefersNativeSms()) {
+      window.location.assign(nativeSmsHref(recipient.phone, text));
+      return;
+    }
+    void copyText(recipient, "invite");
+  }
 
   async function addRecipient() {
     const nextName = name.trim();
@@ -151,22 +197,12 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
     setName("");
     setPhone("");
     setError("");
-    setNotice(result.notice ?? "Share their opt-in link. They’ll only get texts after they agree.");
+    setNotice(result.notice ?? "Share their invite so they can agree to texts.");
     router.refresh();
   }
 
   async function copyOptInLink(recipient: Recipient) {
-    if (!recipient.inviteToken) return;
-    const url = recipientOptInUrl(recipient);
-    const absolute =
-      url.startsWith("http") ? url : `${window.location.origin}${url}`;
-    try {
-      await navigator.clipboard.writeText(absolute);
-      setCopiedId(recipient.id);
-      window.setTimeout(() => setCopiedId(""), 2500);
-    } catch {
-      setError("Could not copy the link. Copy it from the address bar after opening it.");
-    }
+    await copyText(recipient, "link");
   }
 
   async function removeRecipient(id: string) {
@@ -184,7 +220,8 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
     <section>
       <h2 className="text-lg font-medium tracking-tight">Recipients</h2>
       <p className="mt-1 text-sm text-ink-muted">
-        Add people, then share each opt-in link. They only get texts after they agree themselves.
+        Add people, then tap Invite to text them from your phone. They only get Mora texts after
+        they agree themselves.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -225,23 +262,46 @@ function RecipientsSection({ recipients }: { recipients: Recipient[] }) {
           recipients.map((recipient) => (
             <li
               key={recipient.id}
-              className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-charcoal/8 bg-paper px-4 py-3 shadow-[0_8px_24px_-18px_rgb(42_36_33_/_0.35)]"
+              className="flex min-w-0 items-start justify-between gap-3 rounded-2xl border border-charcoal/8 bg-paper px-4 py-3 shadow-[0_8px_24px_-18px_rgb(42_36_33_/_0.35)]"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-medium">{recipient.name}</p>
                 <p className="truncate text-sm text-ink-muted">{recipient.phone}</p>
                 <p className="mt-1 text-sm text-ink-muted">
                   {recipient.smsConsent ? "SMS enabled" : "Pending SMS consent"}
                 </p>
-                {recipient.inviteToken ? (
-                  <button
-                    type="button"
-                    className="mt-1 text-sm text-charcoal/70 underline-offset-4 hover:underline"
-                    onClick={() => copyOptInLink(recipient)}
-                  >
-                    {copiedId === recipient.id ? "Opt-in link copied" : "Copy opt-in link"}
-                  </button>
-                ) : null}
+                {recipient.smsConsent || !recipient.inviteToken ? null : (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      className="h-11 w-full sm:w-auto"
+                      disabled={busy}
+                      onClick={() => inviteRecipient(recipient)}
+                    >
+                      Invite
+                    </Button>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <button
+                        type="button"
+                        className="hidden min-h-11 text-left text-sm text-charcoal/70 underline-offset-4 hover:underline sm:inline"
+                        onClick={() => copyText(recipient, "invite")}
+                      >
+                        {copied?.id === recipient.id && copied.kind === "invite"
+                          ? "Invitation copied"
+                          : "Copy invitation"}
+                      </button>
+                      <button
+                        type="button"
+                        className="min-h-11 text-left text-sm text-charcoal/70 underline-offset-4 hover:underline"
+                        onClick={() => copyOptInLink(recipient)}
+                      >
+                        {copied?.id === recipient.id && copied.kind === "link"
+                          ? "Opt-in link copied"
+                          : "Copy opt-in link"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <button
                 type="button"
